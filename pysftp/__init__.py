@@ -2,24 +2,23 @@
 from __future__ import print_function
 
 import os
-from contextlib import contextmanager
 import posixpath
 import socket
-from stat import S_IMODE, S_ISDIR, S_ISREG
 import tempfile
 import warnings
+from contextlib import contextmanager
+from stat import S_IMODE, S_ISDIR, S_ISREG
 
 import paramiko
-from paramiko import SSHException, AuthenticationException   # make available
-from paramiko import AgentKey, RSAKey, DSSKey
+from paramiko import (AgentKey, AuthenticationException,  # make available
+                      DSSKey, RSAKey, SSHException)
 
-from pysftp.exceptions import (CredentialException, ConnectionException,
+from pysftp.exceptions import (ConnectionException, CredentialException,
                                HostKeysException)
-from pysftp.helpers import (st_mode_to_int, WTCallbacks, path_advance,
-                            path_retreat, reparent, walktree, cd, known_hosts)
+from pysftp.helpers import (WTCallbacks, cd, known_hosts, path_advance,
+                            path_retreat, reparent, st_mode_to_int, walktree)
 
-
-__version__ = "0.2.9"
+__version__ = "0.2.9.2"
 # pylint: disable = R0913,C0302
 
 
@@ -35,6 +34,8 @@ class CnOpts(object):   # pylint:disable=r0903
         transport, if set to True.
     :ivar list|None ciphers: initial value: None -
         List of ciphers to use in order.
+    :ivar list|None server_extensions: server extensions: None - Customize 
+        server extensions.
     :ivar paramiko.hostkeys.HostKeys|None hostkeys: HostKeys object to use for
         host key checking.
     :param filepath|None knownhosts: initial value: None - file to load
@@ -47,6 +48,7 @@ class CnOpts(object):   # pylint:disable=r0903
         self.log = False
         self.compression = False
         self.ciphers = None
+        self.server_extensions = None
         if knownhosts is None:
             knownhosts = known_hosts()
         self.hostkeys = paramiko.hostkeys.HostKeys()
@@ -140,6 +142,9 @@ class Connection(object):   # pylint:disable=r0902,r0904
         self._transport.use_compression(self._cnopts.compression)
         self._set_authentication(password, private_key, private_key_pass)
         self._transport.connect(username=self._tconnect["username"])
+        # Define server extensions
+        if hasattr(self._transport, 'server_extensions') and self._cnopts.server_extensions is not None:
+            self._transport.server_extensions = self._cnopts.server_extensions
         # Get authentication request methods
         listAuthReq = None
         try:
@@ -156,8 +161,7 @@ class Connection(object):   # pylint:disable=r0902,r0904
                     print(f"Unsupported authentication mode : {authReq}")
         
     def _set_authentication(self, password, private_key, private_key_pass):
-        '''Authenticate the transport. prefer password if given'''
-        #if password is None:
+        '''Authenticate the transport with private key'''
         # Use Private Key.
         if not private_key:
             # Try to use default key.
@@ -192,6 +196,7 @@ class Connection(object):   # pylint:disable=r0902,r0904
             if self._cnopts.ciphers is not None:
                 ciphers = self._cnopts.ciphers
                 self._transport.get_security_options().ciphers = ciphers
+
         except (AttributeError, socket.gaierror):
             # couldn't connect
             raise ConnectionException(host, port)

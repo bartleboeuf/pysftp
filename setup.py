@@ -18,7 +18,7 @@ DESCRIPTION = "A friendly face on SFTP"
 
 setup(
     name="pysftp",
-    version="0.2.9.1",
+    version="0.2.9.2",
 
     packages=['pysftp', ],
 
