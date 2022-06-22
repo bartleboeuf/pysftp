@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: pysftp
-Version: 0.2.9.2
+Version: 0.2.9.3
 Summary: A friendly face on SFTP
 Home-page: https://bitbucket.org/dundeemt/pysftp
 Author: Jeff Hinrichs
@@ -29,7 +29,7 @@ Description: pysftp
         
         Supports
         --------
-        Tested on Python 2.7, 3.2, 3.3, 3.4
+        Tested on Python 2.7, 3.2, 3.3, 3.4, 3.8, 3.9, 3.10
         
         .. image:: https://drone.io/bitbucket.org/dundeemt/pysftp/status.png
             :target: https://drone.io/bitbucket.org/dundeemt/pysftp/latest
@@ -43,6 +43,10 @@ Description: pysftp
         Change Log
         ----------
 
+        * 0.2.9.3 (pre-release 2022-06-22)
+
+          * feat: connection with proxy tunnel - (bleboeuf)
+
         * 0.2.9.2 (pre-release 2022-06-18)
 
           * feat: allow to set server extensions before client connection - (bleboeuf)
@@ -50,7 +54,7 @@ Description: pysftp
         * 0.2.9.1 (pre-release 2022-06-18)
 
           * fix: support multi authentication mode with password and publickey - (bleboeuf)
- 
+
         * 0.2.9 (current, released 2016-07-04)
         
           * bugfix: correctly implement hostcheck. Now, be default pysftp will verify
@@ -153,4 +157,7 @@ Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3.3
 Classifier: Programming Language :: Python :: 3.4
 Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: Implementation :: CPython

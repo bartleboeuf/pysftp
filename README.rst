@@ -30,7 +30,7 @@ Example
     username = "User1"
     password = "PasswordTest1234!"
     pkPath = "/mnt/c/temp/id_rsa"
-
+    pkPass = "S6cretPasS"
 
     cnopts = pysftp.CnOpts()
     cnopts.log = True            # Activate logging
@@ -49,9 +49,37 @@ Example
         sftp.close()             # Close Connection
 
 
+::
+
+    import pysftp
+    import logging
+
+    logging.basicConfig()
+    logging.getLogger("paramiko").setLevel(logging.INFO)
+
+    hostname = "192.168.0.1"
+    username = "User1"
+    password = "PasswordTest1234!"
+    myProxyHost = "myproxy.corp.local"
+    myProxyPort = 3128
+
+    cnopts = pysftp.CnOpts()
+    cnopts.log = True            # Activate logging
+    cnopts.hostkeys = None       # Ignore KnownHost
+    with pysftp.Connection(
+        host=hostname,           # set remote Hostname
+        username=username,       # set Username
+        password=password,       # set Password
+        proxyHost=myProxyHost,   # set proxy hostname
+        proxyPort=myProxyPort,   # set proxy port
+        cnopts=cnopts,           # set connection Options
+    ) as sftp:
+        print(sftp.listdir())    # List remote directories
+        sftp.close()             # Close Connection
+
 Supports
 --------
-Tested on Python 2.7, 3.2, 3.3, 3.4, 3.8
+Tested on Python 2.7, 3.2, 3.3, 3.4, 3.8, 3.9, 3.10
 
 .. image:: https://drone.io/bitbucket.org/dundeemt/pysftp/status.png
     :target: https://drone.io/bitbucket.org/dundeemt/pysftp/latest

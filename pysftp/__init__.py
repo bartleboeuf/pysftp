@@ -1,6 +1,7 @@
 """A friendly Python SFTP interface."""
 from __future__ import print_function
 
+import logging
 import os
 import posixpath
 import socket
@@ -18,7 +19,7 @@ from pysftp.exceptions import (ConnectionException, CredentialException,
 from pysftp.helpers import (WTCallbacks, cd, known_hosts, path_advance,
                             path_retreat, reparent, st_mode_to_int, walktree)
 
-__version__ = "0.2.9.2"
+__version__ = "0.2.9.3"
 # pylint: disable = R0913,C0302
 
 
@@ -110,7 +111,7 @@ class Connection(object):   # pylint:disable=r0902,r0904
     
     def __init__(self, host, username=None, private_key=None, password=None,
                  port=22, private_key_pass=None, ciphers=None, log=False,
-                 cnopts=None, default_path=None):
+                 cnopts=None, default_path=None, proxyHost=None, proxyPort=None):
         # starting point for transport.connect options
         self._tconnect = {'username': username, 'password': password,
                           'hostkey': None, 'pkey': None}
@@ -138,9 +139,9 @@ class Connection(object):   # pylint:disable=r0902,r0904
         self._set_logging()
         # Begin the SSH transport.
         self._transport = None
-        self._start_transport(host, port)
+        self._start_transport(host=host, port=port, proxyHost=proxyHost, proxyPort=proxyPort)
         self._transport.use_compression(self._cnopts.compression)
-        self._set_authentication(password, private_key, private_key_pass)
+        self._set_authentication(private_key, private_key_pass)
         self._transport.connect(username=self._tconnect["username"])
         # Define server extensions
         if hasattr(self._transport, 'server_extensions') and self._cnopts.server_extensions is not None:
@@ -154,13 +155,43 @@ class Connection(object):   # pylint:disable=r0902,r0904
         if listAuthReq is not None:
             for authReq in listAuthReq:
                 if authReq == "password":
-                    self._transport.auth_password(username=self._tconnect["username"], password=self._tconnect["password"])
+                    if self._tconnect["password"] is not None:
+                        self._transport.auth_password(username=self._tconnect["username"], password=self._tconnect["password"])
                 elif authReq == "publickey":
-                    self._transport.auth_publickey(username=self._tconnect["username"], key=self._tconnect["pkey"])
+                    if self._tconnect["pkey"] is not None:
+                        self._transport.auth_publickey(username=self._tconnect["username"], key=self._tconnect["pkey"])
                 else:
-                    print(f"Unsupported authentication mode : {authReq}")
+                    raise Exception(f"Unsupported authentication mode : {authReq}")
         
-    def _set_authentication(self, password, private_key, private_key_pass):
+    def _http_proxy_tunnel_connect(self, proxy, target, timeout=None):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        sock.connect(proxy)
+        logging.debug("connected")
+        cmd_connect = "CONNECT %s:%d HTTP/1.1\r\n\r\n" % target
+        logging.debug("--> %s" % repr(cmd_connect))
+        sock.sendall(bytes(cmd_connect, 'UTF-8'))
+        response = []
+        sock.settimeout(2)  # quick hack - replace this with something better performing.
+        try:
+            # in worst case this loop will take 2 seconds if not response was received (sock.timeout)
+            while True:
+                chunk = sock.recv(1024)
+                if not chunk:  # if something goes wrong
+                    break
+                response.append(chunk.decode('utf-8'))
+                if "\r\n\r\n" in chunk.decode('utf-8'):  # we do not want to read too far
+                    break
+        except socket.error as error:
+            if "timed out" not in error:
+                response = [error]
+        response = ''.join(response)
+        logging.debug("<-- %s" % repr(response))
+        if "200 connection established" not in response.lower():
+            raise Exception("Unable to establish HTTP-Tunnel: %s" % repr(response))
+        return sock
+
+    def _set_authentication(self, private_key, private_key_pass):
         '''Authenticate the transport with private key'''
         # Use Private Key.
         if not private_key:
@@ -170,7 +201,7 @@ class Connection(object):   # pylint:disable=r0902,r0904
             elif os.path.exists(os.path.expanduser('~/.ssh/id_dsa')):
                 private_key = '~/.ssh/id_dsa'
             else:
-                raise CredentialException("No password or key specified.")
+                raise CredentialException("No key specified.")
 
         if isinstance(private_key, (AgentKey, RSAKey)):
             # use the paramiko agent or rsa key
@@ -187,10 +218,14 @@ class Connection(object):   # pylint:disable=r0902,r0904
                 self._tconnect['pkey'] = DSSKey.from_private_key_file(
                     private_key_file, private_key_pass)
 
-    def _start_transport(self, host, port):
+    def _start_transport(self, host, port, proxyHost=None, proxyPort=None):
         '''start the transport and set the ciphers if specified.'''
         try:
-            self._transport = paramiko.Transport((host, port))
+            if proxyHost is None or proxyPort is None:
+                self._transport = paramiko.Transport((host, port))
+            else:
+                sock = self._http_proxy_tunnel_connect(proxy=(proxyHost,proxyPort),target=(host, port))
+                self._transport = paramiko.Transport(sock=sock)
             
             # Set security ciphers if set
             if self._cnopts.ciphers is not None:
